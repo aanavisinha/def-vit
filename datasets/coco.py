@@ -152,6 +152,50 @@ def make_coco_transforms(image_set):
         ])
 
     raise ValueError(f'unknown {image_set}')
+    
+    
+def make_voc_transforms(image_set, args):
+
+    normalize = T.Compose([
+        T.ToTensor(),
+        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+
+    if image_set == 'train':
+        if args.backbone == 'vit':
+            return T.Compose([
+                T.RandomHorizontalFlip(),
+                T.RandomResize([(384,384)], max_size=384),
+                T.ToTensor(),
+                T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            ])
+        else:
+            return T.Compose([
+                T.RandomHorizontalFlip(),
+                T.RandomSelect(
+                    T.RandomResize([400, 500, 600], max_size=1000),
+                    T.Compose([
+                        T.RandomResize([400, 500, 600]),
+                        T.RandomCrop((384, 384)),
+                        T.RandomResize([400, 500, 600], max_size=1000),
+                    ])
+                ),
+                normalize,
+            ])
+
+    if image_set == 'val':
+        if args.backbone == 'vit':
+            return T.Compose([
+                T.RandomHorizontalFlip(),
+                T.RandomResize([(384, 384)], max_size=384),
+                T.ToTensor(),
+                T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            ])
+    else:
+        return T.Compose([
+            T.RandomResize([600], max_size=1000),
+            normalize,
+        ])
 
 
 def build(image_set, args):
@@ -159,11 +203,11 @@ def build(image_set, args):
     assert root.exists(), f'provided COCO path {root} does not exist'
     mode = 'instances'
     PATHS = {
-        "train": (root / "train2017", root / "annotations" / f'{mode}_train2017.json'),
-        "val": (root / "val2017", root / "annotations" / f'{mode}_val2017.json'),
+        "train": (root / "images", root / "annotations" / f'{mode}_train2017.json'),
+        "val": (root / "images", root / "annotations" / f'{mode}_val2017.json'),
     }
 
     img_folder, ann_file = PATHS[image_set]
-    dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks,
+    dataset = CocoDetection(img_folder, ann_file, transforms=make_voc_transforms(image_set, args), return_masks=args.masks,
                             cache_mode=args.cache_mode, local_rank=get_local_rank(), local_size=get_local_size())
     return dataset
