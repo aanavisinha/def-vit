@@ -136,6 +136,9 @@ class ViTBackbone():
         out['0'] = NestedTensor(x, mask)
 
         return out
+    
+    def __call__(self, tensor_list: NestedTensor):
+        return self.forward(tensor_list)
 
 
 class Joiner(nn.Sequential):
@@ -160,7 +163,7 @@ class Joiner(nn.Sequential):
 # VIT JOINER
 
 class ViTJoiner(ViTBackbone):
-    def __init  __(self, backbone, position_embedding):
+    def __init__(self, backbone, position_embedding):
         self.backbone = backbone
         self.position_embedding = position_embedding
         self.strides = backbone.strides
