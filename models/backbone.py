@@ -140,8 +140,34 @@ class ViTBackbone():
     
     def __call__(self, tensor_list: NestedTensor):
         return self.forward(tensor_list)
+    
+    
+# VIT INT GETTER
+class ViTBackboneInt(nn.Module):
+    def __init__(self, train_backbone: bool, channel_768: bool):
+        super().__init__()
+        if tiny:
+            self.body = IntermediateLayerGetter(timm.create_model('vit_small_patch16_224', pretrained=True), return_layers={'blocks': '0'})
+            self.tiny = True
+        else:
+            self.body = IntermediateLayerGetter(timm.create_model('vit_base_patch16_384', pretrained=True), return_layers={'blocks': '0'})
+            self.tiny = False
 
+        if train_backbone:
+            for name, parameter in self.body.named_parameters():
+                parameter.requires_grad_(True)
+        else:
+            for name, parameter in self.body.named_parameters():
+                parameter.requires_grad_(False)
 
+        if channel_768:
+            self.num_channels = [768]
+        else:
+            self.num_channels = [2048]
+        
+        self.strides = [32]
+        
+        
 class Joiner(nn.Sequential):
     def __init__(self, backbone, position_embedding):
         super().__init__(backbone, position_embedding)
@@ -188,8 +214,12 @@ class ViTJoiner(ViTBackbone):
 def build_backbone(args):
     position_embedding = build_position_encoding(args)
     if args.backbone == 'vit':
-        backbone = ViTBackbone()
-        model = ViTJoiner(backbone, position_embedding)
+        tiny = args.epochs == 152
+        train_backbone = args.lr_backbone > 0
+        channel_768 = args.epochs == 151
+        backbone = ViTBackboneInt(train_backbone = train_backbone, channel_768 = channel_768)
+        model = Joiner(backbone, position_embedding)
+        model.num_channels = backbone.num_channels
         return model
     else:
         train_backbone = args.lr_backbone > 0
@@ -197,4 +227,4 @@ def build_backbone(args):
         backbone = Backbone(args.backbone, train_backbone, return_interm_layers, args.dilation)
         model = Joiner(backbone, position_embedding)
         return model
-
+   
